@@ -53,7 +53,7 @@ func main() {
 		var server *raft.Server
 		for id := range servers {
 			server = servers[id]
-			if server.Submit("ABIBA") {
+			if server.Submit("ABOBA") {
 				break
 			}
 		}

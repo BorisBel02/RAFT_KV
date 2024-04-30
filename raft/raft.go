@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const Debugn = 0
+const Debugn = 4
 
 type CommitEntry struct {
 	Command interface{}
@@ -28,7 +28,7 @@ const (
 )
 
 const (
-	ElectionTimeout  = 300
+	ElectionTimeout  = 10 * time.Second
 	HeartBeatTimeout = ElectionTimeout / 6
 )
 
@@ -292,7 +292,7 @@ func (n *RaftNode) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRep
 }
 
 func (n *RaftNode) electionTimeout() time.Duration {
-	return time.Duration(150+rand.Intn(150)) * time.Millisecond
+	return time.Duration(ElectionTimeout.Milliseconds()+rand.Int63()%150) * time.Millisecond
 }
 
 // runElectionTimer is func for routine that checks if electionTimeout is elapsed

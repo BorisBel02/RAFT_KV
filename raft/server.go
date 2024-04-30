@@ -11,7 +11,7 @@ import (
 type Server struct {
 	mu sync.Mutex
 
-	serverId int
+	ServerId int
 	peerIds  []int
 
 	n *RaftNode
@@ -19,41 +19,44 @@ type Server struct {
 	rpcServer *rpc.Server
 	listener  net.Listener
 
-	commitChan  chan<- CommitEntry
+	commitChan  chan CommitEntry
 	peerClients map[int]*rpc.Client
 
 	ready <-chan interface{}
 	quit  chan interface{}
 	wg    sync.WaitGroup
+
+	storage *KVStorage
 }
 
-func InitServer(serverId int, peerIds []int, ready <-chan interface{}, commitChan chan<- CommitEntry) *Server {
+func InitServer(ServerId int, peerIds []int, ready <-chan interface{}, commitChan chan CommitEntry) *Server {
 	s := new(Server)
-	s.serverId = serverId
+	s.ServerId = ServerId
 	s.peerIds = peerIds
 	s.peerClients = make(map[int]*rpc.Client)
 	s.ready = ready
 	s.commitChan = commitChan
 	s.quit = make(chan interface{})
+	s.storage = InitKVStorage()
 	return s
 }
 
 func (s *Server) Serve() {
 	s.mu.Lock()
-	s.n = InitRaftNode(s.serverId, s.peerIds, s, s.ready, s.commitChan)
-
+	go s.storage.StartStorage(s.commitChan)
+	s.n = InitRaftNode(s.ServerId, s.peerIds, s, s.ready, s.commitChan)
 	s.rpcServer = rpc.NewServer()
-	s.rpcServer.Register(s.n) //register Raft service with RaftNode name
+	_ = s.rpcServer.Register(s.n) //register Raft service with RaftNode name
 
 	var err error
 	var addr net.TCPAddr
 	addr.IP = net.ParseIP("127.0.0.1")
-	addr.Port = 8000 + s.serverId
+	addr.Port = 8000 + s.ServerId
 	s.listener, err = net.Listen(addr.Network(), addr.String())
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("[%v] listening at %s", s.serverId, s.listener.Addr())
+	log.Printf("[%v] listening at %s", s.ServerId, s.listener.Addr())
 	s.mu.Unlock()
 
 	s.wg.Add(1)
@@ -115,7 +118,7 @@ func (s *Server) ConnectToAllPeers() error {
 		if err != nil {
 			return err
 		}
-		log.Println(s.serverId, "connected to ", addr.String())
+		log.Println(s.ServerId, "connected to ", addr.String())
 	}
 
 	return nil
@@ -126,4 +129,8 @@ func (s *Server) isLeader() bool {
 }
 func (s *Server) Submit(command interface{}) bool {
 	return s.n.Submit(command)
+}
+
+func (s *Server) PrintMap() {
+	fmt.Println(s.storage)
 }

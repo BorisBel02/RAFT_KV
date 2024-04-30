@@ -2,12 +2,13 @@ package main
 
 import (
 	"RAFT_KV/raft"
+	"encoding/gob"
 	"fmt"
 	"time"
 )
 
 func main() {
-	peersIds := []int{1, 2, 3, 4, 5}
+	peersIds := []int{1, 2, 3}
 	readyChan := make(chan interface{})
 	commitChan := make(chan raft.CommitEntry)
 
@@ -47,13 +48,20 @@ func main() {
 	}
 
 	readyChan <- struct{}{}
-
+	counter := 0
+	time.Sleep(6 * time.Second)
 	for {
-		time.Sleep(2 * time.Second)
+		me := raft.MapCommEntry{Method: "Set", Args: struct {
+			Key   int
+			Value string
+		}{Key: counter, Value: "aboba"}}
+		counter++
+		time.Sleep(5 * time.Second)
 		var server *raft.Server
+		gob.Register(me)
 		for id := range servers {
 			server = servers[id]
-			if server.Submit("ABOBA") {
+			if server.Submit(me) {
 				break
 			}
 		}

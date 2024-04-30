@@ -20,35 +20,38 @@ func (kvStorage *KVStorage) StartStorage(commitChan chan CommitEntry) {
 	log.Println("storage started")
 	for {
 		comm, ok := <-commitChan
-		log.Println("new entry to commit")
+		log.Printf("new entry to commit %+v\n", comm)
 		if !ok {
-			fmt.Println("commit chan failure in storage")
+			log.Println("commit chan failure in storage")
 
 		}
 		if mapEntry, ok := comm.Command.(MapCommEntry); !ok {
-			fmt.Println("command is not a MapCommEntry")
+			log.Fatalf("command: %s is not a MapCommEntry", comm.Command)
 			return
 		} else {
-			method := reflect.ValueOf(kvStorage).MethodByName(mapEntry.method)
+			method := reflect.ValueOf(kvStorage).MethodByName(mapEntry.Method)
 			if method.IsValid() {
-				method.Call([]reflect.Value{reflect.ValueOf(mapEntry.args)})
+				method.Call([]reflect.Value{reflect.ValueOf(mapEntry.Args)})
+			} else {
+				log.Fatalf("method %s %+v invalid\n", comm.Command, mapEntry.Args)
 			}
 		}
 	}
 }
 
 func (kvStorage *KVStorage) Set(args KVStruct) {
-	kvStorage.storage[args.key] = args.value
+	kvStorage.storage[args.Key] = args.Value
+	log.Println(kvStorage.storage)
 }
 
 func (kvStorage *KVStorage) Get(args KVStruct) string {
-	value := kvStorage.storage[args.key]
+	value := kvStorage.storage[args.Key]
 	fmt.Println(value)
 	return value
 }
 
 func (kvStorage *KVStorage) Delete(args KVStruct) {
-	delete(kvStorage.storage, args.key)
+	delete(kvStorage.storage, args.Key)
 }
 
 func (kvStorage *KVStorage) Clear(args KVStruct) {
@@ -60,15 +63,15 @@ func (kvStorage *KVStorage) Size(args KVStruct) int {
 }
 
 type KVStruct struct {
-	key   int
-	value string
+	Key   int
+	Value string
 }
 type MapCommEntry struct {
-	method string
-	args   KVStruct
+	Method string
+	Args   KVStruct
 }
 
-func (mce *MapCommEntry) InitMapCommEntry(method string, key int, value string) {
-	mce.method = method
-	mce.args = KVStruct{key: key, value: value}
+func (mce *MapCommEntry) InitMapCommEntry(method string, Key int, value string) {
+	mce.Method = method
+	mce.Args = KVStruct{Key: Key, Value: value}
 }

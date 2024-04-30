@@ -28,7 +28,7 @@ const (
 )
 
 const (
-	ElectionTimeout  = 10 * time.Second
+	ElectionTimeout  = 2 * time.Second
 	HeartBeatTimeout = ElectionTimeout / 6
 )
 
@@ -220,7 +220,13 @@ func (n *RaftNode) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRep
 	if n.state == Dead {
 		return nil
 	}
-	n.dlog(5, "AppendEntries: %+v", args)
+	if Debugn > 4 {
+		n.dlog(5, "AppendEntries: %+v", args)
+	} else {
+		if len(args.Entries) > 0 {
+			n.dlog(3, "AppendEntries: %+v", args)
+		}
+	}
 
 	if args.Term > n.currentTerm {
 		n.dlog(4, "... term out of date in AppendEntries")
@@ -435,6 +441,7 @@ func (n *RaftNode) becomeLeader() {
 			}
 
 			if doSend {
+				n.dlog(5, "Leader do sending")
 				//if this is not a leader anymore, stop the heartbeat loop.
 				n.mu.Lock()
 				if n.state != Leader {
@@ -479,7 +486,10 @@ func (n *RaftNode) leaderSendEntries() {
 				LeaderCommit: n.commitIndex,
 			}
 			n.mu.Unlock()
-			n.dlog(5, "sending AppendEntries to %v: ni=%d, args=%+v", peerId, ni, args)
+			//n.dlog(5, "sending AppendEntries to %v: ni=%d, args=%+v", peerId, ni, args)
+			if len(entries) > 0 {
+				n.dlog(3, "sending AppendEntries to %v: ni=%d, args=%+v", peerId, ni, args)
+			}
 			var reply AppendEntriesReply
 			if err := n.server.Call(peerId, "RaftNode.AppendEntries", args, &reply); err == nil {
 				n.mu.Lock()
@@ -538,6 +548,8 @@ func (n *RaftNode) leaderSendEntries() {
 						n.dlog(3, "AppendEntries reply from %d !success: nextIndex := %d", peerId, ni-1)
 					}
 				}
+			} else {
+				log.Fatalf("[%d] CALL FAILED err = %v", n.id, err)
 			}
 		}(peerId)
 	}

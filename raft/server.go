@@ -17,6 +17,7 @@ type Server struct {
 	n *RaftNode
 
 	rpcServer *rpc.Server
+	rpcProxy  *RPCProxy
 	listener  net.Listener
 
 	commitChan  chan CommitEntry
@@ -42,13 +43,17 @@ func InitServer(ServerId int, peerIds []int, ready <-chan interface{}, commitCha
 }
 
 func (s *Server) Serve() {
+	var err error
 	s.mu.Lock()
 	go s.storage.StartStorage(s.commitChan)
 	s.n = InitRaftNode(s.ServerId, s.peerIds, s, s.ready, s.commitChan)
 	s.rpcServer = rpc.NewServer()
-	_ = s.rpcServer.Register(s.n) //register Raft service with RaftNode name
+	s.rpcProxy = &RPCProxy{n: s.n}
+	err = s.rpcServer.RegisterName("RaftNode", s.rpcProxy) //register Raft service with RaftNode name
+	if err != nil {
+		log.Fatal("register service failed")
+	}
 
-	var err error
 	var addr net.TCPAddr
 	addr.IP = net.ParseIP("127.0.0.1")
 	addr.Port = 8000 + s.ServerId
@@ -133,4 +138,16 @@ func (s *Server) Submit(command interface{}) bool {
 
 func (s *Server) PrintMap() {
 	fmt.Println(s.storage)
+}
+
+type RPCProxy struct {
+	n *RaftNode
+}
+
+func (rpp *RPCProxy) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
+	return rpp.n.RequestVote(args, reply)
+}
+
+func (rpp *RPCProxy) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
+	return rpp.n.AppendEntries(args, reply)
 }

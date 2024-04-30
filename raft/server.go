@@ -2,8 +2,10 @@ package raft
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net"
+	"net/http"
 	"net/rpc"
 	"sync"
 )
@@ -138,6 +140,14 @@ func (s *Server) Submit(command interface{}) bool {
 
 func (s *Server) PrintMap() {
 	fmt.Println(s.storage)
+}
+func (s *Server) SetEntry(c *gin.Context) {
+	var me MapCommEntry
+	if err := c.ShouldBindJSON(&me); err != nil {
+		c.String(http.StatusBadRequest, err.Error())
+	}
+	s.Submit(me)
+	c.JSON(http.StatusOK, me)
 }
 
 type RPCProxy struct {

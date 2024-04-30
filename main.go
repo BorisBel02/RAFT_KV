@@ -50,6 +50,7 @@ func main() {
 	readyChan <- struct{}{}
 	counter := 0
 	time.Sleep(6 * time.Second)
+	gob.Register(raft.MapCommEntry{})
 	for {
 		me := raft.MapCommEntry{Method: "Set", Args: struct {
 			Key   int
@@ -58,7 +59,6 @@ func main() {
 		counter++
 		time.Sleep(5 * time.Second)
 		var server *raft.Server
-		gob.Register(me)
 		for id := range servers {
 			server = servers[id]
 			if server.Submit(me) {

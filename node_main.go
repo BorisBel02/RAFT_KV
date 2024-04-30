@@ -2,8 +2,9 @@ package main
 
 import (
 	"RAFT_KV/raft"
-	"bufio"
-	"fmt"
+	"encoding/gob"
+	"github.com/gin-gonic/gin"
+	"net/http"
 	"os"
 	"strconv"
 )
@@ -24,35 +25,16 @@ func main() {
 	s := raft.InitServer(serv, servPeersIds, readyChan, commitChan)
 	s.Serve()
 
-	counter := 0
-	for {
-		scanner := bufio.NewScanner(os.Stdin)
+	//counter := 0
+	readyChan <- struct{}{}
+	_ = s.ConnectToAllPeers()
 
-		for scanner.Scan() {
-			text := scanner.Text()
-			switch text {
-			case "list":
-				s.PrintMap()
-				break
-			case "append":
-				comm := new(raft.MapCommEntry)
-				comm.InitMapCommEntry("Set", s.ServerId, strconv.Itoa(counter))
-				if s.Submit(comm) {
-					fmt.Println("Submit success")
-				} else {
-					fmt.Println("Submit failed")
-				}
-				break
-			case "s":
-				readyChan <- struct{}{}
-				err := s.ConnectToAllPeers()
-				if err != nil {
-					fmt.Println("Connect failed ", err.Error())
-				}
-			case "quit":
-				fmt.Println("Quit")
-				break
-			}
-		}
-	}
+	gob.Register(raft.MapCommEntry{})
+
+	router := gin.Default()
+	router.POST("/map/", s.SetEntry)
+	router.GET("/hello", func(c *gin.Context) {
+		c.JSON(http.StatusOK, "THIS IS A RAFT SERVER")
+	})
+	router.Run("localhost:6000")
 }

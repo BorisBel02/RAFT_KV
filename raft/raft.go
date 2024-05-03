@@ -70,6 +70,7 @@ type RaftNode struct {
 	currentTerm int
 	votedFor    int
 	log         []LogEntry
+	savedLeader int
 
 	commitIndex        int
 	lastApplied        int
@@ -230,6 +231,7 @@ func (n *RaftNode) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRep
 		n.becomeFollower(args.Term)
 	}
 
+	n.savedLeader = args.LeaderId
 	reply.Success = false
 	if args.Term == n.currentTerm {
 		if n.state != Follower {

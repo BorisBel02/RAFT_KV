@@ -4,15 +4,19 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"sync"
 )
 
 type KVStorage struct {
-	storage map[int]string
+	storage     map[int]string
+	storageLock sync.RWMutex
+	flag        bool
 }
 
 func InitKVStorage() *KVStorage {
 	kvs := new(KVStorage)
 	kvs.storage = make(map[int]string)
+	kvs.flag = false
 	return kvs
 }
 
@@ -40,26 +44,54 @@ func (kvStorage *KVStorage) StartStorage(commitChan chan CommitEntry) {
 }
 
 func (kvStorage *KVStorage) Set(args KVStruct) {
+	kvStorage.storageLock.Lock()
+	defer kvStorage.storageLock.Unlock()
 	kvStorage.storage[args.Key] = args.Value
 	log.Println(kvStorage.storage)
 }
 
 func (kvStorage *KVStorage) Get(args KVStruct) string {
+	kvStorage.storageLock.RLock()
+	defer kvStorage.storageLock.RUnlock()
 	value := kvStorage.storage[args.Key]
 	fmt.Println(value)
 	return value
 }
 
 func (kvStorage *KVStorage) Delete(args KVStruct) {
+	kvStorage.storageLock.Lock()
+	defer kvStorage.storageLock.Unlock()
 	delete(kvStorage.storage, args.Key)
 }
 
 func (kvStorage *KVStorage) Clear(args KVStruct) {
+	kvStorage.storageLock.Lock()
+	defer kvStorage.storageLock.Unlock()
 	kvStorage.storage = make(map[int]string)
 }
 
 func (kvStorage *KVStorage) Size(args KVStruct) int {
+	kvStorage.storageLock.RLock()
+	defer kvStorage.storageLock.RUnlock()
 	return len(kvStorage.storage)
+}
+
+func (kvStorage *KVStorage) Lock(args KVStruct) bool {
+	kvStorage.storageLock.Lock()
+	defer kvStorage.storageLock.Unlock()
+	if !kvStorage.flag {
+		kvStorage.flag = true
+	}
+	return kvStorage.flag
+}
+
+func (kvStorage *KVStorage) Unlock(args KVStruct) bool {
+	kvStorage.storageLock.Lock()
+	defer kvStorage.storageLock.Unlock()
+	if kvStorage.flag {
+		kvStorage.flag = false
+	}
+	return !kvStorage.flag
 }
 
 type KVStruct struct {
@@ -69,9 +101,4 @@ type KVStruct struct {
 type MapCommEntry struct {
 	Method string   `json:"method"`
 	Args   KVStruct `json:"args"`
-}
-
-func (mce *MapCommEntry) InitMapCommEntry(method string, Key int, value string) {
-	mce.Method = method
-	mce.Args = KVStruct{Key: Key, Value: value}
 }

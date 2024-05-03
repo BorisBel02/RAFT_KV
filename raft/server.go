@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
+	"strconv"
 	"sync"
 )
 
@@ -47,13 +48,17 @@ func InitServer(ServerId int, peerIds []int, ready <-chan interface{}, commitCha
 func (s *Server) Serve() {
 	var err error
 	s.mu.Lock()
+
 	go s.storage.StartStorage(s.commitChan)
+
 	s.n = InitRaftNode(s.ServerId, s.peerIds, s, s.ready, s.commitChan)
+
 	s.rpcServer = rpc.NewServer()
+
 	s.rpcProxy = &RPCProxy{n: s.n}
 	err = s.rpcServer.RegisterName("RaftNode", s.rpcProxy) //register Raft service with RaftNode name
 	if err != nil {
-		log.Fatal("register service failed")
+		log.Fatal("register raft service failed")
 	}
 
 	var addr net.TCPAddr
@@ -64,6 +69,7 @@ func (s *Server) Serve() {
 		log.Fatal(err)
 	}
 	log.Printf("[%v] listening at %s", s.ServerId, s.listener.Addr())
+	
 	s.mu.Unlock()
 
 	s.wg.Add(1)
@@ -151,8 +157,9 @@ func (s *Server) SetEntry(c *gin.Context) {
 	}
 	if s.Submit(me) {
 		c.JSON(http.StatusOK, me)
+		return
 	}
-	c.JSON(http.StatusBadRequest, "Not a leader")
+	c.JSON(http.StatusBadRequest, "Not a leader. Leader ID = "+strconv.Itoa(s.n.savedLeader))
 }
 
 func (s *Server) Die(c *gin.Context) {
@@ -163,6 +170,69 @@ func (s *Server) Die(c *gin.Context) {
 func (s *Server) Start(c *gin.Context) {
 	s.n.Start()
 	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (s *Server) Lock(c *gin.Context) {
+	if !s.isLeader() {
+		c.JSON(http.StatusInternalServerError, "Not a leader")
+		return
+	}
+	if s.n.state == Dead {
+		c.JSON(http.StatusInternalServerError, "node is dead")
+		return
+	}
+
+	var savedIndex int
+
+	for {
+		s.mu.Lock()
+		if !s.storage.flag {
+			break
+		}
+		s.mu.Unlock()
+	}
+
+	savedIndex = s.n.lastApplied
+
+	var me MapCommEntry
+	me.Method = "Lock"
+	s.Submit(me)
+	s.mu.Unlock()
+
+	for {
+		s.mu.Lock()
+		if s.n.commitIndex >= savedIndex+1 {
+			s.mu.Unlock()
+			break
+		}
+		s.mu.Unlock()
+	}
+
+	c.JSON(http.StatusOK, "LOCKED")
+}
+
+func (s *Server) Unlock(c *gin.Context) {
+	if !s.isLeader() {
+		c.JSON(http.StatusInternalServerError, "Not a leader")
+		return
+	}
+	if s.n.state == Dead {
+		c.JSON(http.StatusInternalServerError, "Node is dead")
+		return
+	}
+	s.mu.Lock()
+	if !s.storage.flag {
+		c.JSON(http.StatusInternalServerError, "Already unlocked")
+		s.mu.Unlock()
+		return
+	}
+
+	var me MapCommEntry
+	me.Method = "Unlock"
+	s.Submit(me)
+	s.mu.Unlock()
+
+	c.JSON(http.StatusOK, "UNLOCK appended to log")
 }
 
 type RPCProxy struct {

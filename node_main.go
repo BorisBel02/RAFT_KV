@@ -52,6 +52,9 @@ func main() {
 	router.GET("/die/", s.Die)
 	router.GET("/start/", s.Start)
 
+	router.GET("/lock/", s.Lock)
+	router.GET("unlock/", s.Unlock)
+
 	port := strconv.Itoa(10000 + serv)
 	_ = router.Run("localhost:" + port)
 }

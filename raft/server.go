@@ -105,7 +105,7 @@ func (s *Server) ConnectToPeer(peerId int, addr net.Addr) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.peerClients[peerId] == nil {
-		client, err := rpc.Dial(addr.Network(), addr.String())
+		client, err := rpc.Dial("tcp", addr.String())
 		if err != nil {
 			return err
 		}
@@ -130,10 +130,12 @@ func (s *Server) ConnectToAllPeers() error {
 
 	return nil
 }
+
 func (s *Server) isLeader() bool {
 	_, _, ldr := s.n.ReportState()
 	return ldr
 }
+
 func (s *Server) Submit(command interface{}) bool {
 	return s.n.Submit(command)
 }
@@ -141,13 +143,26 @@ func (s *Server) Submit(command interface{}) bool {
 func (s *Server) PrintMap() {
 	fmt.Println(s.storage)
 }
+
 func (s *Server) SetEntry(c *gin.Context) {
 	var me MapCommEntry
 	if err := c.ShouldBindJSON(&me); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 	}
-	s.Submit(me)
-	c.JSON(http.StatusOK, me)
+	if s.Submit(me) {
+		c.JSON(http.StatusOK, me)
+	}
+	c.JSON(http.StatusBadRequest, "Not a leader")
+}
+
+func (s *Server) Die(c *gin.Context) {
+	s.n.Stop()
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (s *Server) Start(c *gin.Context) {
+	s.n.Start()
+	c.JSON(http.StatusOK, gin.H{})
 }
 
 type RPCProxy struct {

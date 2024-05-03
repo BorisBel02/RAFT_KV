@@ -63,12 +63,12 @@ func (kvStorage *KVStorage) Size(args KVStruct) int {
 }
 
 type KVStruct struct {
-	Key   int
-	Value string
+	Key   int    `json:"key"`
+	Value string `json:"value"`
 }
 type MapCommEntry struct {
-	Method string
-	Args   KVStruct
+	Method string   `json:"method"`
+	Args   KVStruct `json:"args"`
 }
 
 func (mce *MapCommEntry) InitMapCommEntry(method string, Key int, value string) {

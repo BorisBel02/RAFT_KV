@@ -129,9 +129,6 @@ func (n *RaftNode) Submit(command interface{}) bool {
 	return false
 }
 
-// Stop stops this node, cleaning up its state. This method returns quickly, but
-// it may take a bit of time (up to ~election timeout) for all goroutines to
-// exit.
 func (n *RaftNode) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -440,7 +437,7 @@ func (n *RaftNode) becomeLeader() {
 				t.Reset(heartbeatTimeout)
 			}
 
-			if doSend {
+			if doSend && n.state != Dead {
 				n.dlog(5, "Leader do sending")
 				//if this is not a leader anymore, stop the heartbeat loop.
 				n.mu.Lock()
@@ -548,9 +545,13 @@ func (n *RaftNode) leaderSendEntries() {
 						n.dlog(3, "AppendEntries reply from %d !success: nextIndex := %d", peerId, ni-1)
 					}
 				}
-			} else {
-				log.Fatalf("[%d] CALL FAILED err = %v", n.id, err)
-			}
+			} /* else {
+				log.Printf("[%d] CALL FAILED err = %v", n.id, err) //todo: try to reconnect
+				var ip net.TCPAddr
+				ip.IP = net.ParseIP("localhost")
+				ip.Port = 8000 + i
+				go n.server.ConnectToPeer(i, &ip)
+			}*/
 		}(peerId)
 	}
 }
